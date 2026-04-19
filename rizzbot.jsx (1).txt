@@ -1,0 +1,617 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+
+const fontLink = document.createElement("link");
+fontLink.rel = "stylesheet";
+fontLink.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap";
+document.head.appendChild(fontLink);
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const PERSONAS = {
+  mia:   { name:"Mia",   age:23, emoji:"👱‍♀️", job:"Studentin",     vibe:"Selbstbewusst, reist gerne, liebt Kaffee. Hohe Standards.",          accent:"#f472b6", grad:"linear-gradient(135deg,#f472b6,#a855f7)" },
+  sara:  { name:"Sara",  age:25, emoji:"👩‍🦰", job:"Karrierefrau",   vibe:"Direkt, schlagfertig, keine Zeit für Unsinn.",                       accent:"#fb923c", grad:"linear-gradient(135deg,#fb923c,#ef4444)" },
+  lea:   { name:"Lea",   age:21, emoji:"👩",   job:"Kunststudentin", vibe:"Kreativ, mag Tiefe und Ehrlichkeit. Hasst Smalltalk.",               accent:"#34d399", grad:"linear-gradient(135deg,#34d399,#06b6d4)" },
+  kim:   { name:"Kim",   age:27, emoji:"👩‍🦱", job:"Ärztin",        vibe:"Rational, analytisch, sehr schwer zu beeindrucken.",                 accent:"#818cf8", grad:"linear-gradient(135deg,#818cf8,#e879f9)" },
+  sofia: { name:"Sofia", age:24, emoji:"👩‍🦳", job:"Designerin",    vibe:"Ästhetisch, ironisch, hasst Klischees und generische Opener.",       accent:"#f59e0b", grad:"linear-gradient(135deg,#f59e0b,#ef4444)" },
+  nora:  { name:"Nora",  age:22, emoji:"🧕",   job:"Journalistin",   vibe:"Kritisch, hinterfragt alles, braucht intellektuelle Stimulation.",   accent:"#2dd4bf", grad:"linear-gradient(135deg,#2dd4bf,#6366f1)" },
+  julia: { name:"Julia", age:29, emoji:"👩‍💼", job:"Anwältin",      vibe:"Mächtig, selbstsicher, testet ob du Druck standhältst.",            accent:"#e879f9", grad:"linear-gradient(135deg,#e879f9,#6366f1)" },
+  anna:  { name:"Anna",  age:20, emoji:"👧",   job:"Gymnasiastin",   vibe:"Witzig, verspielt, aber schnell gelangweilt von Boring-Typen.",      accent:"#a3e635", grad:"linear-gradient(135deg,#a3e635,#22d3ee)" },
+};
+
+const SCENARIOS = {
+  dating_app: { label:"Dating App",    icon:"📱", desc:"Ihr habt gematcht. Du schreibst zuerst." },
+  cafe:        { label:"Café",          icon:"☕", desc:"Sie sitzt allein, liest ein Buch." },
+  party:       { label:"Party",         icon:"🎉", desc:"Du triffst sie auf einer Feier." },
+  gym:         { label:"Gym",           icon:"🏋️", desc:"Sie trainiert neben dir." },
+  uni:         { label:"Uni",           icon:"📚", desc:"Ihr seid im gleichen Seminar." },
+  supermarkt:  { label:"Supermarkt",   icon:"🛒", desc:"Du stehst hinter ihr an der Kasse." },
+  konzert:     { label:"Konzert",       icon:"🎵", desc:"Ihr steht beide in der Warteschlange." },
+  strand:      { label:"Strand",        icon:"🏖️", desc:"Sie liegt allein am Strand." },
+  zug:         { label:"Zug",           icon:"🚂", desc:"Ihr sitzt gegenüber im Abteil." },
+  work:        { label:"Arbeit",        icon:"💼", desc:"Sie ist neu im Büro." },
+};
+
+const DIFFICULTIES = {
+  easy:   { label:"Easy",   icon:"😊", color:"#34d399", desc:"Gibt dir eine echte Chance" },
+  normal: { label:"Normal", icon:"😐", color:"#fbbf24", desc:"Realistisch & ausgewogen" },
+  hard:   { label:"Hard",   icon:"😤", color:"#fb923c", desc:"Skeptisch & unbeeindruckt" },
+  brutal: { label:"Brutal", icon:"💀", color:"#ef4444", desc:"Kaum zu knacken" },
+};
+
+const LANGUAGES = {
+  de:    { label:"Deutsch",  flag:"🇩🇪" },
+  en:    { label:"English",  flag:"🇬🇧" },
+  mixed: { label:"Denglish", flag:"🔀" },
+};
+
+const FEEDBACK_MODES = {
+  full:    { label:"Vollständig", icon:"📊", desc:"Score + Tipp nach jeder Msg" },
+  minimal: { label:"Minimal",    icon:"🔢", desc:"Nur Score" },
+  end:     { label:"Am Ende",    icon:"🏁", desc:"Auswertung am Schluss" },
+  off:     { label:"Aus",        icon:"🚫", desc:"Purer Praxis-Modus" },
+};
+
+const ALL_ACHIEVEMENTS = [
+  { id:"first_chat",    icon:"🚀", title:"Erster Schritt",    desc:"Ersten Chat gestartet",             check: s => s.totalChats >= 1 },
+  { id:"ten_msgs",      icon:"💬", title:"Gesprächig",        desc:"10 Nachrichten gesendet",           check: s => s.totalMessages >= 10 },
+  { id:"fifty_msgs",    icon:"🗣️", title:"Redemaschine",      desc:"50 Nachrichten gesendet",           check: s => s.totalMessages >= 50 },
+  { id:"first_10",      icon:"⭐", title:"Erster 10er",       desc:"Score 10/10 erreicht",              check: s => s.bestScore >= 10 },
+  { id:"avg_7",         icon:"🔥", title:"Hot Streak",        desc:"Durchschnitt über 7.0",             check: s => s.allTimeAvg >= 7 },
+  { id:"avg_9",         icon:"👑", title:"Rizz King",         desc:"Durchschnitt über 9.0",             check: s => s.allTimeAvg >= 9 },
+  { id:"five_personas", icon:"🎭", title:"Casanova",          desc:"5 verschiedene Personas versucht",  check: s => s.triedPersonas >= 5 },
+  { id:"all_personas",  icon:"🌟", title:"Everybody Loves Me",desc:"Alle Personas freigeschaltet",      check: s => s.triedPersonas >= 8 },
+  { id:"brutal_7",      icon:"💪", title:"Brutalissimo",      desc:"Brutal-Modus mit Ø 7+ abgeschlossen",check: s => s.bestBrutalAvg >= 7 },
+  { id:"five_scenarios",icon:"🗺️", title:"Weltenbummler",     desc:"5 verschiedene Szenarien gespielt", check: s => s.triedScenarios >= 5 },
+  { id:"all_scenarios", icon:"🏆", title:"Szenario-Meister",  desc:"Alle Szenarien abgeschlossen",      check: s => s.triedScenarios >= 10 },
+  { id:"streak_3",      icon:"📅", title:"Fleißig",           desc:"3 Tage in Folge trainiert",         check: s => s.loginStreak >= 3 },
+  { id:"hundred_msgs",  icon:"💯", title:"Centurion",         desc:"100 Nachrichten gesendet",          check: s => s.totalMessages >= 100 },
+  { id:"comeback",      icon:"😤", title:"Comeback Kid",      desc:"Nach Score ≤3 auf ≥8 gestiegen",    check: s => s.hadComeback },
+  { id:"ten_chats",     icon:"🎯", title:"Draufgänger",       desc:"10 Chats abgeschlossen",            check: s => s.totalChats >= 10 },
+];
+
+function buildPrompt(cfg) {
+  const p = PERSONAS[cfg.persona];
+  const s = SCENARIOS[cfg.scenario];
+  const d = DIFFICULTIES[cfg.difficulty];
+  const name = cfg.customName || p.name;
+  const vibe = cfg.customVibe || p.vibe;
+  const langMap = { de:"Antworte ausschließlich auf Deutsch.", en:"Reply only in English.", mixed:"Mix Deutsch und Englisch wie Gen-Z." };
+  const diffMap = {
+    easy:   "Du bist offen, freundlich und gibst schnell positive Signale.",
+    normal: "Du bist realistisch — positiv bei guten Nachrichten, kühl bei schlechten.",
+    hard:   "Du bist skeptisch. Kurze Antworten, wenig Wärme ohne echten Grund.",
+    brutal: "Extrem schwer zu beeindrucken. Bei Klischées nur *liest aber antwortet nicht*, ansonsten sehr kurz und kühl.",
+  };
+  const fbMap = {
+    full:    "Füge am Ende jeder Antwort: [SCORE: X/10] (Tipp: konkreter Hinweis)",
+    minimal: "Füge am Ende jeder Antwort NUR: [SCORE: X/10]",
+    end:     "Kein Feedback nach einzelnen Nachrichten. Nur wenn User 'auswerten' schreibt, gib Gesamtbewertung.",
+    off:     "Kein Feedback, kein Score. 100% in der Rolle bleiben.",
+  };
+  return `Du spielst "${name}", ${p.age}, ${p.job}. Situation: ${s.desc}
+Persönlichkeit: ${vibe}
+Schwierigkeit: ${d.label} — ${diffMap[cfg.difficulty]}
+${langMap[cfg.language]}
+Verhalte dich wie eine echte Person — schreib kurz, nicht wie ein Assistent.
+${fbMap[cfg.feedbackMode]}`;
+}
+
+function parseMsg(raw, mode) {
+  if (mode === "off") return { text: raw.trim(), score: null, tip: null };
+  const full = raw.match(/\[SCORE:\s*(\d+)\/10\]\s*\(Tipp:\s*([^)]+)\)/);
+  const mini = raw.match(/\[SCORE:\s*(\d+)\/10\]/);
+  const m = full || mini;
+  return {
+    text: raw.replace(/\[SCORE:[^\]]+\](\s*\([^)]+\))?/, "").trim(),
+    score: m ? parseInt(m[1]) : null,
+    tip: full ? full[2] : null,
+  };
+}
+
+const SC = s => s <= 3 ? "#ef4444" : s <= 5 ? "#fb923c" : s <= 7 ? "#fbbf24" : "#34d399";
+
+// ─── DEFAULT STATS ────────────────────────────────────────────────────────────
+const DEFAULT_STATS = {
+  totalChats: 0, totalMessages: 0, bestScore: 0, allTimeAvg: 0,
+  allScores: [], triedPersonas: 0, triedScenarios: 0,
+  bestBrutalAvg: 0, hadComeback: false, loginStreak: 0,
+  personasUsed: [], scenariosUsed: [], unlockedAchievements: [],
+  chatHistory: [], lastLogin: null,
+};
+
+function loadStats() {
+  try {
+    const raw = localStorage.getItem("rizzbot_stats_v3");
+    return raw ? { ...DEFAULT_STATS, ...JSON.parse(raw) } : { ...DEFAULT_STATS };
+  } catch { return { ...DEFAULT_STATS }; }
+}
+
+function saveStats(s) {
+  try { localStorage.setItem("rizzbot_stats_v3", JSON.stringify(s)); } catch {}
+}
+
+// ─── SUBCOMPONENTS ───────────────────────────────────────────────────────────
+function Chip({ active, onClick, accent, children }) {
+  return <button onClick={onClick} style={{
+    padding:"7px 14px", borderRadius:"999px", border:"none",
+    background: active ? (accent||"#a855f7") : "rgba(255,255,255,0.06)",
+    color: active ? "#fff" : "rgba(255,255,255,0.45)",
+    fontSize:"0.78rem", fontFamily:"'DM Sans',sans-serif", fontWeight: active?600:400,
+    cursor:"pointer", transition:"all 0.16s", whiteSpace:"nowrap",
+    boxShadow: active ? `0 0 14px ${accent||"#a855f7"}55` : "none",
+  }}>{children}</button>;
+}
+
+function Sec({ title, children }) {
+  return <div style={{marginBottom:"22px"}}>
+    <div style={{fontSize:"0.63rem",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.2em",color:"rgba(255,255,255,0.28)",textTransform:"uppercase",marginBottom:"10px",fontWeight:600}}>{title}</div>
+    {children}
+  </div>;
+}
+
+function AchievementCard({ ach, unlocked }) {
+  return <div style={{
+    background: unlocked ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
+    border: `1px solid ${unlocked ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)"}`,
+    borderRadius:"14px", padding:"12px", opacity: unlocked ? 1 : 0.45,
+    transition:"all 0.2s",
+  }}>
+    <div style={{fontSize:"1.6rem",marginBottom:"5px"}}>{unlocked ? ach.icon : "🔒"}</div>
+    <div style={{color: unlocked?"#fff":"rgba(255,255,255,0.4)", fontWeight:600, fontSize:"0.82rem"}}>{ach.title}</div>
+    <div style={{color:"rgba(255,255,255,0.3)", fontSize:"0.68rem", marginTop:"2px", lineHeight:1.4}}>{ach.desc}</div>
+  </div>;
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+export default function RizzBot() {
+  const [screen, setScreen]     = useState("settings"); // settings | chat | stats | achievements
+  const [stats, setStats]       = useState(loadStats);
+  const [newAchs, setNewAchs]   = useState([]);
+
+  // settings
+  const [persona,      setPersona]      = useState("mia");
+  const [scenario,     setScenario]     = useState("dating_app");
+  const [difficulty,   setDifficulty]   = useState("brutal");
+  const [language,     setLanguage]     = useState("de");
+  const [feedbackMode, setFeedbackMode] = useState("full");
+  const [customName,   setCustomName]   = useState("");
+  const [customVibe,   setCustomVibe]   = useState("");
+
+  // chat
+  const [messages,  setMessages]  = useState([]);
+  const [input,     setInput]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [scores,    setScores]    = useState([]);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  const p = PERSONAS[persona];
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
+
+  // Persist stats
+  useEffect(() => { saveStats(stats); }, [stats]);
+
+  // Login streak
+  useEffect(() => {
+    const today = new Date().toDateString();
+    setStats(s => {
+      if (s.lastLogin === today) return s;
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      const streak = s.lastLogin === yesterday ? s.loginStreak + 1 : 1;
+      return { ...s, lastLogin: today, loginStreak: streak };
+    });
+  }, []);
+
+  function updateStats(sessionScores, cfg) {
+    setStats(prev => {
+      const all = [...prev.allScores, ...sessionScores];
+      const avg = all.length ? +(all.reduce((a,b)=>a+b,0)/all.length).toFixed(2) : 0;
+      const best = Math.max(prev.bestScore, ...sessionScores, 0);
+      const personas = prev.personasUsed.includes(cfg.persona) ? prev.personasUsed : [...prev.personasUsed, cfg.persona];
+      const scenarios = prev.scenariosUsed.includes(cfg.scenario) ? prev.scenariosUsed : [...prev.scenariosUsed, cfg.scenario];
+      const sessionAvg = sessionScores.length ? sessionScores.reduce((a,b)=>a+b,0)/sessionScores.length : 0;
+      const bestBrutal = cfg.difficulty==="brutal" ? Math.max(prev.bestBrutalAvg, sessionAvg) : prev.bestBrutalAvg;
+      // check comeback: had a score <=3 followed by >=8
+      let comeback = prev.hadComeback;
+      if (!comeback) {
+        for (let i=1;i<sessionScores.length;i++) {
+          if (sessionScores[i-1]<=3 && sessionScores[i]>=8) { comeback=true; break; }
+        }
+      }
+      const next = {
+        ...prev,
+        totalChats: prev.totalChats + 1,
+        totalMessages: prev.totalMessages + sessionScores.length,
+        bestScore: best,
+        allTimeAvg: avg,
+        allScores: all,
+        triedPersonas: personas.length,
+        triedScenarios: scenarios.length,
+        bestBrutalAvg: bestBrutal,
+        hadComeback: comeback,
+        personasUsed: personas,
+        scenariosUsed: scenarios,
+        chatHistory: [{ date: new Date().toLocaleDateString(), persona: cfg.persona, scenario: cfg.scenario, difficulty: cfg.difficulty, avg: sessionAvg.toFixed(1), msgs: sessionScores.length }, ...prev.chatHistory].slice(0,20),
+      };
+      // check achievements
+      const freshAchs = ALL_ACHIEVEMENTS.filter(a => !prev.unlockedAchievements.includes(a.id) && a.check(next));
+      if (freshAchs.length) {
+        next.unlockedAchievements = [...prev.unlockedAchievements, ...freshAchs.map(a=>a.id)];
+        setNewAchs(freshAchs);
+        setTimeout(()=>setNewAchs([]),4000);
+      }
+      return next;
+    });
+  }
+
+  function startChat() {
+    setMessages([{ role:"info", text:`${SCENARIOS[scenario].icon} ${SCENARIOS[scenario].desc}` }]);
+    setScores([]);
+    setScreen("chat");
+    setTimeout(()=>inputRef.current?.focus(),100);
+  }
+
+  function endChat() {
+    if (scores.length) updateStats(scores, { persona, scenario, difficulty, language, feedbackMode });
+    setScreen("settings");
+    setMessages([]); setScores([]); setInput("");
+  }
+
+  async function send() {
+    if (!input.trim() || loading) return;
+    const txt = input.trim(); setInput("");
+    const upd = [...messages, { role:"user", text:txt }];
+    setMessages(upd); setLoading(true);
+
+    const apiMsgs = upd.filter(m=>m.role!=="info").map(m=>({
+      role: m.role==="user"?"user":"assistant",
+      content: m.role==="assistant"
+        ? (m.score!=null ? `${m.text}\n[SCORE: ${m.score}/10]${m.tip?` (Tipp: ${m.tip})`:""}` : m.text)
+        : m.text,
+    }));
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000,
+          system: buildPrompt({persona,scenario,difficulty,language,feedbackMode,customName,customVibe}),
+          messages: apiMsgs }),
+      });
+      const data = await res.json();
+      const parsed = parseMsg(data.content?.[0]?.text||"...", feedbackMode);
+      setMessages(p=>[...p,{role:"assistant",...parsed}]);
+      if (parsed.score!=null) setScores(p=>[...p,parsed.score]);
+    } catch {
+      setMessages(p=>[...p,{role:"assistant",text:"...",score:null,tip:null}]);
+    }
+    setLoading(false);
+  }
+
+  function hk(e){ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} }
+
+  const avgScore = scores.length ? +(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+
+  // ── NAV BAR (shared) ──────────────────────────────────────────────────────
+  function NavBar() {
+    const tabs = [
+      { id:"settings",     icon:"⚙️",  label:"Setup" },
+      { id:"stats",        icon:"📊",  label:"Stats" },
+      { id:"achievements", icon:"🏆",  label:"Badges" },
+    ];
+    return <div style={{
+      display:"flex", justifyContent:"space-around", alignItems:"center",
+      padding:"10px 0 14px", borderTop:"1px solid rgba(255,255,255,0.07)",
+      background:"rgba(12,12,18,0.97)", backdropFilter:"blur(12px)",
+      width:"100%", maxWidth:"480px",
+    }}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>setScreen(t.id)} style={{
+          background:"none", border:"none", cursor:"pointer",
+          display:"flex", flexDirection:"column", alignItems:"center", gap:"3px",
+          opacity: screen===t.id ? 1 : 0.4, transition:"opacity 0.15s",
+        }}>
+          <span style={{fontSize:"1.2rem"}}>{t.icon}</span>
+          <span style={{fontSize:"0.62rem",color:"#fff",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.1em"}}>{t.label}</span>
+        </button>
+      ))}
+    </div>;
+  }
+
+  // ── SETTINGS ──────────────────────────────────────────────────────────────
+  if (screen==="settings") return (
+    <div style={{minHeight:"100vh",background:`radial-gradient(ellipse 80% 50% at 50% 0%,${p.accent}22 0%,transparent 55%),#0c0c12`,display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{width:"100%",maxWidth:"480px",flex:1,overflowY:"auto",padding:"24px 16px 8px",scrollbarWidth:"none"}}>
+
+        {/* Header */}
+        <div style={{textAlign:"center",marginBottom:"28px"}}>
+          <div style={{fontSize:"clamp(2rem,7vw,2.8rem)",fontFamily:"'DM Serif Display',serif",fontStyle:"italic",background:"linear-gradient(135deg,#f9a8d4,#a78bfa,#67e8f9)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.1,marginBottom:"6px"}}>RizzBot</div>
+          <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.72rem",letterSpacing:"0.2em",textTransform:"uppercase"}}>Flirten lernen · Simulator</div>
+          <div style={{marginTop:"10px",display:"flex",justifyContent:"center",gap:"16px",fontSize:"0.75rem",color:"rgba(255,255,255,0.35)"}}>
+            <span>💬 {stats.totalMessages} Msgs</span>
+            <span>🔥 Ø {stats.allTimeAvg.toFixed(1)}</span>
+            <span>🏆 {stats.unlockedAchievements.length}/{ALL_ACHIEVEMENTS.length}</span>
+          </div>
+        </div>
+
+        {/* Persona Grid */}
+        <Sec title="Wen willst du ansprechen?">
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+            {Object.entries(PERSONAS).map(([k,v])=>(
+              <button key={k} onClick={()=>setPersona(k)} style={{
+                background: persona===k ? `${v.accent}18` : "rgba(255,255,255,0.04)",
+                border:`1px solid ${persona===k ? v.accent : "rgba(255,255,255,0.07)"}`,
+                borderRadius:"14px", padding:"12px", cursor:"pointer", textAlign:"left",
+                transition:"all 0.16s", boxShadow: persona===k ? `0 0 20px ${v.accent}28` : "none",
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"5px"}}>
+                  <span style={{fontSize:"1.3rem"}}>{v.emoji}</span>
+                  <span style={{color:"#fff",fontWeight:600,fontSize:"0.88rem"}}>{v.name}, {v.age}</span>
+                </div>
+                <div style={{color:"rgba(255,255,255,0.35)",fontSize:"0.68rem",lineHeight:1.4}}>{v.vibe}</div>
+                {stats.personasUsed.includes(k) && <div style={{marginTop:"5px",fontSize:"0.6rem",color:v.accent}}>✓ gespielt</div>}
+              </button>
+            ))}
+          </div>
+        </Sec>
+
+        {/* Custom */}
+        <Sec title="Persona anpassen (optional)">
+          <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+            <input value={customName} onChange={e=>setCustomName(e.target.value)} placeholder={`Name (Standard: ${p.name})`} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"12px",color:"#fff",fontFamily:"'DM Sans',sans-serif",fontSize:"0.87rem",padding:"10px 14px",outline:"none",caretColor:p.accent}}/>
+            <textarea value={customVibe} onChange={e=>setCustomVibe(e.target.value)} placeholder="Eigene Persönlichkeit beschreiben…" rows={2} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:"12px",color:"#fff",fontFamily:"'DM Sans',sans-serif",fontSize:"0.87rem",padding:"10px 14px",outline:"none",resize:"none",caretColor:p.accent}}/>
+          </div>
+        </Sec>
+
+        {/* Scenario */}
+        <Sec title="Szenario">
+          <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
+            {Object.entries(SCENARIOS).map(([k,v])=>(
+              <Chip key={k} active={scenario===k} onClick={()=>setScenario(k)} accent={p.accent}>
+                {v.icon} {v.label}{stats.scenariosUsed.includes(k)?" ✓":""}
+              </Chip>
+            ))}
+          </div>
+          <div style={{marginTop:"8px",color:"rgba(255,255,255,0.28)",fontSize:"0.73rem",fontStyle:"italic"}}>{SCENARIOS[scenario].desc}</div>
+        </Sec>
+
+        {/* Difficulty */}
+        <Sec title="Schwierigkeit">
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+            {Object.entries(DIFFICULTIES).map(([k,v])=>(
+              <button key={k} onClick={()=>setDifficulty(k)} style={{
+                background: difficulty===k?`${v.color}16`:"rgba(255,255,255,0.04)",
+                border:`1px solid ${difficulty===k?v.color:"rgba(255,255,255,0.07)"}`,
+                borderRadius:"12px",padding:"10px 12px",cursor:"pointer",textAlign:"left",transition:"all 0.16s",
+              }}>
+                <div style={{fontSize:"1rem",marginBottom:"3px"}}>{v.icon}</div>
+                <div style={{color:difficulty===k?v.color:"#fff",fontWeight:600,fontSize:"0.83rem"}}>{v.label}</div>
+                <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.68rem",marginTop:"2px"}}>{v.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Sec>
+
+        {/* Language + Feedback row */}
+        <Sec title="Sprache">
+          <div style={{display:"flex",gap:"7px",flexWrap:"wrap"}}>
+            {Object.entries(LANGUAGES).map(([k,v])=>(
+              <Chip key={k} active={language===k} onClick={()=>setLanguage(k)} accent={p.accent}>{v.flag} {v.label}</Chip>
+            ))}
+          </div>
+        </Sec>
+
+        <Sec title="Feedback-Modus">
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+            {Object.entries(FEEDBACK_MODES).map(([k,v])=>(
+              <button key={k} onClick={()=>setFeedbackMode(k)} style={{
+                background:feedbackMode===k?`${p.accent}16`:"rgba(255,255,255,0.04)",
+                border:`1px solid ${feedbackMode===k?p.accent:"rgba(255,255,255,0.07)"}`,
+                borderRadius:"12px",padding:"10px 12px",cursor:"pointer",textAlign:"left",transition:"all 0.16s",
+              }}>
+                <div style={{fontSize:"1rem",marginBottom:"3px"}}>{v.icon}</div>
+                <div style={{color:feedbackMode===k?p.accent:"#fff",fontWeight:600,fontSize:"0.82rem"}}>{v.label}</div>
+                <div style={{color:"rgba(255,255,255,0.28)",fontSize:"0.67rem",marginTop:"2px",lineHeight:1.4}}>{v.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Sec>
+
+        {/* Start Button */}
+        <button onClick={startChat} style={{
+          width:"100%",padding:"15px",background:p.grad,border:"none",borderRadius:"16px",
+          color:"#fff",fontFamily:"'DM Serif Display',serif",fontStyle:"italic",fontSize:"1.15rem",
+          cursor:"pointer",boxShadow:`0 8px 28px ${p.accent}44`,transition:"transform 0.15s,box-shadow 0.15s",marginBottom:"8px",
+        }}
+          onMouseEnter={e=>{e.target.style.transform="translateY(-2px)";e.target.style.boxShadow=`0 12px 36px ${p.accent}55`;}}
+          onMouseLeave={e=>{e.target.style.transform="";e.target.style.boxShadow=`0 8px 28px ${p.accent}44`;}}
+        >
+          Starten mit {customName||p.name} {p.emoji}
+        </button>
+      </div>
+      <NavBar/>
+      <style>{`input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2);}input:focus,textarea:focus{border-color:rgba(255,255,255,0.22)!important;}*{box-sizing:border-box;}::-webkit-scrollbar{display:none;}`}</style>
+    </div>
+  );
+
+  // ── CHAT ──────────────────────────────────────────────────────────────────
+  if (screen==="chat") return (
+    <div style={{minHeight:"100vh",background:`radial-gradient(ellipse 70% 40% at 50% 0%,${p.accent}1a 0%,transparent 55%),#0c0c12`,display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'DM Sans',sans-serif"}}>
+
+      {/* Top bar */}
+      <div style={{width:"100%",maxWidth:"480px",padding:"12px 16px 10px",display:"flex",alignItems:"center",gap:"10px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+        <button onClick={endChat} style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:"10px",color:"rgba(255,255,255,0.5)",fontSize:"0.8rem",padding:"7px 11px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>← Ende</button>
+        <div style={{flex:1,display:"flex",alignItems:"center",gap:"9px"}}>
+          <div style={{width:"38px",height:"38px",borderRadius:"50%",background:p.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.2rem",boxShadow:`0 0 14px ${p.accent}44`,flexShrink:0}}>{p.emoji}</div>
+          <div>
+            <div style={{color:"#fff",fontWeight:600,fontSize:"0.92rem"}}>{customName||p.name}, {p.age}</div>
+            <div style={{color:p.accent,fontSize:"0.65rem",letterSpacing:"0.08em"}}>{loading?"schreibt…":`${SCENARIOS[scenario].icon} ${DIFFICULTIES[difficulty].icon} ${DIFFICULTIES[difficulty].label}`}</div>
+          </div>
+        </div>
+        {avgScore!==null && (
+          <div style={{background:`${SC(avgScore)}14`,border:`1px solid ${SC(avgScore)}33`,borderRadius:"10px",padding:"5px 11px",textAlign:"center"}}>
+            <div style={{color:SC(avgScore),fontWeight:700,fontSize:"1.05rem",fontFamily:"monospace"}}>{avgScore}</div>
+            <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.55rem",letterSpacing:"0.15em"}}>AVG</div>
+          </div>
+        )}
+      </div>
+
+      {/* Messages */}
+      <div style={{flex:1,width:"100%",maxWidth:"480px",overflowY:"auto",padding:"14px 14px 6px",display:"flex",flexDirection:"column",gap:"10px",scrollbarWidth:"none",minHeight:0,height:"calc(100vh - 148px)"}}>
+        {messages.map((m,i)=>{
+          if(m.role==="info") return <div key={i} style={{textAlign:"center",color:"rgba(255,255,255,0.22)",fontSize:"0.72rem",fontStyle:"italic",padding:"2px 0"}}>{m.text}</div>;
+          const isU = m.role==="user";
+          return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:isU?"flex-end":"flex-start",gap:"4px"}}>
+            <div style={{maxWidth:"76%",padding:"10px 14px",borderRadius:isU?"18px 18px 4px 18px":"4px 18px 18px 18px",background:isU?p.grad:"rgba(255,255,255,0.07)",border:isU?"none":"1px solid rgba(255,255,255,0.08)",color:"#fff",fontSize:"0.9rem",lineHeight:1.55,fontStyle:m.text?.startsWith("*liest")?"italic":"normal",opacity:m.text?.startsWith("*liest")?0.45:1,boxShadow:isU?`0 4px 14px ${p.accent}28`:"none"}}>
+              {m.text}
+            </div>
+            {!isU && m.score!=null && (
+              <div style={{maxWidth:"85%",background:`${SC(m.score)}0d`,border:`1px solid ${SC(m.score)}28`,borderRadius:"10px",padding:"6px 11px",display:"flex",alignItems:"flex-start",gap:"9px"}}>
+                <span style={{color:SC(m.score),fontFamily:"monospace",fontSize:"0.8rem",fontWeight:700,whiteSpace:"nowrap"}}>{m.score}/10</span>
+                {m.tip && <span style={{color:"rgba(255,255,255,0.38)",fontSize:"0.7rem",lineHeight:1.45,fontFamily:"'DM Sans',sans-serif"}}>{m.tip}</span>}
+              </div>
+            )}
+          </div>;
+        })}
+        {loading && <div style={{display:"flex",gap:"5px",padding:"6px 0",alignItems:"center"}}>
+          {[0,1,2].map(n=><div key={n} style={{width:"7px",height:"7px",borderRadius:"50%",background:p.accent,animation:`tdot 1.1s ${n*0.18}s infinite`,boxShadow:`0 0 7px ${p.accent}`}}/>)}
+        </div>}
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* Score mini-bars */}
+      {scores.length>0 && (
+        <div style={{width:"100%",maxWidth:"480px",padding:"4px 14px 0",display:"flex",gap:"3px",alignItems:"flex-end",height:"28px"}}>
+          {scores.map((s,i)=><div key={i} style={{flex:1,height:`${(s/10)*24+3}px`,background:SC(s),borderRadius:"3px 3px 0 0",opacity:0.65,transition:"height 0.3s"}} title={`${s}/10`}/>)}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{width:"100%",maxWidth:"480px",padding:"8px 14px 14px",display:"flex",gap:"8px",alignItems:"flex-end",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(12,12,18,0.96)",backdropFilter:"blur(10px)"}}>
+        <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={hk} placeholder="Deine Nachricht…" rows={1} style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"16px",color:"#fff",fontFamily:"'DM Sans',sans-serif",fontSize:"0.9rem",padding:"11px 15px",outline:"none",resize:"none",lineHeight:1.5,caretColor:p.accent}}/>
+        <button onClick={send} disabled={loading||!input.trim()} style={{width:"42px",height:"42px",borderRadius:"50%",border:"none",background:loading||!input.trim()?"rgba(255,255,255,0.05)":p.grad,color:"#fff",fontSize:"1rem",cursor:loading||!input.trim()?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:loading||!input.trim()?"none":`0 4px 16px ${p.accent}44`,transition:"all 0.16s",flexShrink:0}}>↑</button>
+      </div>
+
+      {/* Achievement toast */}
+      {newAchs.map((a,i)=>(
+        <div key={a.id} style={{position:"fixed",top:`${20+i*70}px`,right:"16px",background:"rgba(20,20,30,0.95)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:"14px",padding:"12px 16px",display:"flex",alignItems:"center",gap:"10px",zIndex:999,boxShadow:"0 8px 30px rgba(0,0,0,0.5)",animation:"slideIn 0.3s ease",maxWidth:"260px"}}>
+          <span style={{fontSize:"1.8rem"}}>{a.icon}</span>
+          <div><div style={{color:"#fbbf24",fontWeight:700,fontSize:"0.82rem"}}>Achievement!</div><div style={{color:"#fff",fontSize:"0.78rem"}}>{a.title}</div></div>
+        </div>
+      ))}
+
+      <style>{`@keyframes tdot{0%,100%{transform:translateY(0);opacity:.3}50%{transform:translateY(-6px);opacity:1}}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}textarea::placeholder{color:rgba(255,255,255,0.2);}textarea:focus{border-color:rgba(255,255,255,0.2)!important;}::-webkit-scrollbar{display:none;}*{box-sizing:border-box;}`}</style>
+    </div>
+  );
+
+  // ── STATS ─────────────────────────────────────────────────────────────────
+  if (screen==="stats") return (
+    <div style={{minHeight:"100vh",background:"radial-gradient(ellipse 80% 40% at 50% 0%,rgba(99,102,241,0.18) 0%,transparent 55%),#0c0c12",display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{width:"100%",maxWidth:"480px",flex:1,overflowY:"auto",padding:"24px 16px 8px",scrollbarWidth:"none"}}>
+        <div style={{fontFamily:"'DM Serif Display',serif",fontStyle:"italic",fontSize:"1.8rem",color:"#fff",marginBottom:"20px",textAlign:"center"}}>Deine Stats</div>
+
+        {/* Big numbers */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"10px",marginBottom:"20px"}}>
+          {[
+            { label:"Chats",   value: stats.totalChats,              color:"#818cf8" },
+            { label:"Messages",value: stats.totalMessages,            color:"#34d399" },
+            { label:"Best",    value: `${stats.bestScore}/10`,        color:"#fbbf24" },
+            { label:"Ø Score", value: stats.allTimeAvg.toFixed(1),   color:"#f472b6" },
+            { label:"Streak",  value: `${stats.loginStreak}d`,        color:"#fb923c" },
+            { label:"Badges",  value: `${stats.unlockedAchievements.length}/${ALL_ACHIEVEMENTS.length}`, color:"#e879f9" },
+          ].map(s=>(
+            <div key={s.label} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:"14px",padding:"14px 10px",textAlign:"center"}}>
+              <div style={{color:s.color,fontSize:"1.4rem",fontWeight:700,fontFamily:"monospace"}}>{s.value}</div>
+              <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.65rem",marginTop:"3px",letterSpacing:"0.1em"}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Score distribution */}
+        {stats.allScores.length > 0 && (
+          <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:"16px",padding:"16px",marginBottom:"18px"}}>
+            <div style={{color:"rgba(255,255,255,0.4)",fontSize:"0.65rem",letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:"12px"}}>Score-Verteilung</div>
+            <div style={{display:"flex",gap:"4px",alignItems:"flex-end",height:"60px"}}>
+              {[1,2,3,4,5,6,7,8,9,10].map(v=>{
+                const count = stats.allScores.filter(s=>s===v).length;
+                const max = Math.max(...[1,2,3,4,5,6,7,8,9,10].map(x=>stats.allScores.filter(s=>s===x).length),1);
+                return <div key={v} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"3px"}}>
+                  <div style={{width:"100%",background:SC(v),borderRadius:"3px 3px 0 0",height:`${(count/max)*48+2}px`,opacity:count?0.8:0.12,transition:"height 0.3s"}}/>
+                  <div style={{color:"rgba(255,255,255,0.25)",fontSize:"0.6rem"}}>{v}</div>
+                </div>;
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Chat history */}
+        {stats.chatHistory.length > 0 && (
+          <div>
+            <div style={{color:"rgba(255,255,255,0.28)",fontSize:"0.63rem",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"10px"}}>Letzte Chats</div>
+            <div style={{display:"flex",flexDirection:"column",gap:"7px"}}>
+              {stats.chatHistory.slice(0,8).map((c,i)=>(
+                <div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:"12px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"1.1rem"}}>{PERSONAS[c.persona]?.emoji||"👤"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{color:"#fff",fontSize:"0.82rem",fontWeight:500}}>{PERSONAS[c.persona]?.name||c.persona} · {SCENARIOS[c.scenario]?.icon} {DIFFICULTIES[c.difficulty]?.icon}</div>
+                    <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.68rem"}}>{c.date} · {c.msgs} Msgs</div>
+                  </div>
+                  <div style={{color:SC(parseFloat(c.avg)),fontFamily:"monospace",fontWeight:700,fontSize:"0.9rem"}}>{c.avg}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {stats.totalChats === 0 && (
+          <div style={{textAlign:"center",color:"rgba(255,255,255,0.25)",padding:"40px 0",fontSize:"0.9rem"}}>
+            Noch keine Chats gestartet.<br/>Los gehts! 🚀
+          </div>
+        )}
+
+        {/* Reset */}
+        {stats.totalChats > 0 && (
+          <button onClick={()=>{if(window.confirm("Wirklich alles zurücksetzen?")){const fresh={...DEFAULT_STATS};setStats(fresh);saveStats(fresh);}}} style={{marginTop:"20px",width:"100%",padding:"11px",background:"rgba(255,0,0,0.08)",border:"1px solid rgba(255,0,0,0.2)",borderRadius:"12px",color:"rgba(255,100,100,0.7)",fontFamily:"'DM Sans',sans-serif",fontSize:"0.82rem",cursor:"pointer"}}>
+            🗑️ Stats zurücksetzen
+          </button>
+        )}
+      </div>
+      <NavBar/>
+      <style>{`::-webkit-scrollbar{display:none;}*{box-sizing:border-box;}`}</style>
+    </div>
+  );
+
+  // ── ACHIEVEMENTS ──────────────────────────────────────────────────────────
+  if (screen==="achievements") return (
+    <div style={{minHeight:"100vh",background:"radial-gradient(ellipse 80% 40% at 50% 0%,rgba(251,191,36,0.14) 0%,transparent 55%),#0c0c12",display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{width:"100%",maxWidth:"480px",flex:1,overflowY:"auto",padding:"24px 16px 8px",scrollbarWidth:"none"}}>
+        <div style={{textAlign:"center",marginBottom:"20px"}}>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontStyle:"italic",fontSize:"1.8rem",color:"#fff",marginBottom:"4px"}}>Achievements</div>
+          <div style={{color:"rgba(255,255,255,0.3)",fontSize:"0.78rem"}}>{stats.unlockedAchievements.length} / {ALL_ACHIEVEMENTS.length} freigeschaltet</div>
+          {/* Progress bar */}
+          <div style={{marginTop:"12px",background:"rgba(255,255,255,0.07)",borderRadius:"999px",height:"6px",overflow:"hidden"}}>
+            <div style={{height:"100%",background:"linear-gradient(90deg,#fbbf24,#f472b6)",borderRadius:"999px",width:`${(stats.unlockedAchievements.length/ALL_ACHIEVEMENTS.length)*100}%`,transition:"width 0.4s"}}/>
+          </div>
+        </div>
+
+        {/* Unlocked */}
+        {stats.unlockedAchievements.length > 0 && <>
+          <div style={{color:"rgba(255,255,255,0.28)",fontSize:"0.63rem",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"10px"}}>Freigeschaltet ✓</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"20px"}}>
+            {ALL_ACHIEVEMENTS.filter(a=>stats.unlockedAchievements.includes(a.id)).map(a=><AchievementCard key={a.id} ach={a} unlocked/>)}
+          </div>
+        </>}
+
+        {/* Locked */}
+        <div style={{color:"rgba(255,255,255,0.28)",fontSize:"0.63rem",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"10px"}}>Noch zu schaffen 🔒</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+          {ALL_ACHIEVEMENTS.filter(a=>!stats.unlockedAchievements.includes(a.id)).map(a=><AchievementCard key={a.id} ach={a} unlocked={false}/>)}
+        </div>
+      </div>
+      <NavBar/>
+      <style>{`::-webkit-scrollbar{display:none;}*{box-sizing:border-box;}`}</style>
+    </div>
+  );
+
+  return null;
+}
